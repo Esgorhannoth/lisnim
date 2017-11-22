@@ -344,6 +344,8 @@ proc `[]=`(env: Env, key: string, val: Atom) {.inline.} =
 
 template fun_isType*(typ: AtomKind, args: openArray[Atom]): untyped =
   ##  Template for a function of type ``kind(atom): bool``.
+  if args.len < 1:
+    return atom error "1 or more arguments expected"
   for i in args:
     if i.kind != typ: return atom false
   return atom true
@@ -351,6 +353,8 @@ template fun_isType*(typ: AtomKind, args: openArray[Atom]): untyped =
 
 template fun_numbers*(op: untyped, args: openArray[Atom]): untyped =
   ##  Template for a function of type ``op(num1, num2, ...): num``.
+  if args.len < 1:
+    return atom error "Math functions need at least 1 argument"
   case args[0].kind:
   of aNumber:
     result = atom args[0].n
@@ -374,6 +378,8 @@ template fun_numbers*(op: untyped, args: openArray[Atom]): untyped =
 
 template fun_bool*(op: untyped, args: openArray[Atom]): untyped =
   ##  Template for a function of type ``op(num1, num2, ...): bool``.
+  if args.len < 2:
+    return atom error "Comparision functions need at least 2 arguments"
   result = Atom(kind: aBool)
   if args[0].kind notin {aNumber, aBool}:
     return atom error "Not a number nor bool: " & $args[0]
@@ -508,6 +514,8 @@ proc fun_mod*(args: openArray[Atom]): Atom {.cdecl.} =
 
 type NumberBoolFunc = proc(a, b: Number): bool
 proc odd_or_even*(chk: NumberBoolFunc, args: openArray[Atom]): Atom =
+  if args.len < 1:
+    return atom error "odd/even functions need at least 1 argument"
   for i in args:
     case i.kind:
     of aNumber:
@@ -717,6 +725,17 @@ proc fun_format*(args: openArray[Atom]): Atom {.cdecl.} =
     return atom error "Not a string: " & $fst
 
 
+proc fun_make_err*(args: openArray[Atom]): Atom {.cdecl.} =
+  let fst = args[0]
+  return
+    if fst.kind == aError:
+      fst
+    elif fst.is_string:
+      atom error fst.str_strip
+    else:
+      atom error($fst)
+
+
 proc quit_with*(errorcode: int, newline = false) =
   if newline:
     echo ""
@@ -775,6 +794,7 @@ var global_env = newEnv([
   ("char",      atom fun_char),
   ("format",    atom fun_format),
   ("fmt",       atom fun_format),
+  ("err",       atom fun_make_err),
   ("exit",      atom fun_quit),
   ("quit",      atom fun_quit),
   ])
@@ -1103,12 +1123,10 @@ proc eval(x: Atom, env: Env = global_env): Atom =
 
         case cdr.kind:
         of aList:
+          # if there are args
           if cdr.list.len > 0:
             for i in cdr.list.items:
               args.add(eval(i, env))
-          # just one argument
-          else:
-            args.add(eval(cdr, env))
         of aError:
           return cdr
         else:
