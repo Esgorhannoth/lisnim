@@ -1228,6 +1228,7 @@ when isMainModule:
 
     while true:
       write(stdout, "lisnim> ")
+      flushFile(stdout)
       try:
         let r = execLine readLine(stdin)
         case r.kind:
